@@ -1,0 +1,42 @@
+---
+title: "cvgeneric function"
+author: "Ming Chen"
+date: "5/3/2019"
+output: html_document
+---
+
+```{r}
+#install.packages("cvTools")
+library(cvTools)
+
+
+CVgeneric <- function(classifier, train_f, train_l, folds, loss){
+  acc = c()
+  loss_func = loss
+  dataset = train_f
+  dataset$label = train_l
+  k = folds
+  folds <- cvFolds(NROW(dataset), K=k)
+  test_acc = 0
+  
+  for(i in 1:k){
+    
+    train <- dataset[folds$subsets[folds$which != i], ] 
+    validation <- dataset[folds$subsets[folds$which == i], ] 
+    
+    prediction <- classifier(dataset, validation)
+    
+    accuracy = mean(prediction==validation$label)
+    
+    print(paste0("Accuracy for fold", i))
+    print(accuracy)
+    acc =c(acc, accuracy)
+    
+  }
+  print(paste0("   Accuracy for cv:"))
+  print(mean(acc))
+  print("  Loss:")
+  return (loss_func(mean(acc)))
+}  
+
+```

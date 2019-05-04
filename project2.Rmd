@@ -1,0 +1,798 @@
+---
+title: "project2"
+author: "Ming Chen"
+date: "4/30/2019"
+output: html_document
+---
+
+(b) Summarize the data, i.e., % of pixels for the different classes. Plot well-labeled beautiful maps using x, y coordinates the expert labels with color of the region based on the expert labels. Do you observe some trend/pattern? Is an i.i.d. assump- tion for the samples justified for this dataset?
+
+```{r}
+#load the data
+image1 = read.table("image_data/image1.txt", sep="")
+image2 = read.table("image_data/image2.txt", sep="")
+image3 = read.table("image_data/image3.txt", sep="")
+
+colnames(image1)  = c("y_cor", "x_cor", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
+colnames(image2)  = c("y_cor", "x_cor", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
+colnames(image3)  = c("y_cor", "x_cor", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
+
+#merge 3 images into one dataset
+images = rbind(image1, image2, image3)
+
+```
+
+```{r}
+write.csv(images, file="image_data/images.csv")
+```
+
+```{r}
+nrow(image3)
+```
+
+Summarize the data, i.e., % of pixels for the different classes
+```{r}
+#image1
+table(image1$label)/nrow(image1)*100
+
+```
+```{r}
+#image2
+table(image2$label)/nrow(image2)*100
+```
+
+```{r}
+#image3
+table(image3$label)/nrow(image3)*100
+```
+```{r}
+#images
+table(images$label)/nrow(images)*100
+```
+
+Plot well-labeled beautiful maps using x, y coordinates the expert labels with color of the region based on the expert labels.
+
+```{r}
+#install.packages(c("cowplot", "googleway", "ggplot2", "ggrepel", "ggspatial", "libwgeom", "sf"))
+
+library("ggplot2")
+theme_set(theme_bw())
+```
+
+```{r}
+image1$label = factor(image1$label)
+ggplot(image1) +
+  geom_point(aes(x = x_cor, y = y_cor, col = label)) + 
+  scale_colour_manual(labels = c(1, 0, -1), values = c("white", "black", "gray")) +
+  xlab("x coordinator") + ylab("y coordinator")
+
+```
+
+```{r}
+image2$label = factor(image2$label)
+ggplot(image2) +
+  geom_point(aes(x = x_cor, y = y_cor, col = label)) + 
+  scale_colour_manual(labels = c(1, 0, -1), values = c("white", "black", "gray")) +
+  xlab("x coordinator") + ylab("y coordinator")
+```
+
+```{r}
+image3$label = factor(image3$label)
+ggplot(image3) +
+  geom_point(aes(x = x_cor, y = y_cor, col = label)) + 
+  scale_colour_manual(labels = c(1, 0, -1), values = c("white", "black", "gray")) +
+  xlab("x coordinator") + ylab("y coordinator")
+```
+
+Do you observe some trend/pattern? Is an i.i.d. assumption for the samples justified for this dataset?
+
+```{r}
+#Yes. There are some trend. 
+```
+
+(d) Perform a visual and quantitative EDA of the dataset, e.g., summarizing (i) pair- wise relationship between the features themselves and (ii) the relationship between the expert labels with the individual features. Do you notice differences between the two classes (cloud, no cloud) based on the radiance or other features (CORR, NDAI, SD)?
+
+(i) pairwise relationship between the features themselves
+```{r}
+##install.packages("GGally")
+library(GGally)
+ggpairs(images)
+```
+
+
+
+(ii) the relationship between the expert labels with the individual features
+```{r}
+ggcorr(images)
+```
+
+
+```{r}
+boxplot(CORR~label, images, main = "relationship between the expert labels with CORR")
+```
+
+```{r}
+boxplot(NDAI~label, images, main = "relationship between the expert labels with NDAI")
+```
+```{r}
+boxplot(SD~label, images, main = "relationship between the expert labels with SD")
+```
+
+```{r}
+boxplot(AF~label, images, main = "relationship between the expert labels with AF")
+boxplot(BF~label, images, main = "relationship between the expert labels with BF")
+boxplot(CF~label, images, main = "relationship between the expert labels with CF")
+boxplot(DF~label, images, main = "relationship between the expert labels with DF")
+boxplot(AN~label, images, main = "relationship between the expert labels with AN")
+```
+
+```{r}
+boxplot(x_cor~label, images, main = "relationship between the expert labels with x coordinate")
+boxplot(y_cor~label, images, main = "relationship between the expert labels with y coordinate")
+```
+
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+pc = cor(images[, 3:11])
+corrplot.mixed(pc)
+```
+
+```{r}
+#need to explain the differneces with label -1 and 1
+```
+
+
+2 Preparation (40 pts)
+Now that we have done EDA with the data, we now prepare to train our model.
+
+(a) (Data Split) Split the entire data (image1.txt, image2.txt, image3.txt) into three sets: training, validation and test. Think carefully about how to split the data. Suggest at least two non-trivial different ways of splitting the data which takes into account that the data is not i.i.d.
+
+```{r}
+#split data method 1
+x_low = min(range(image1$x_cor)[1], range(image2$x_cor)[1], range(image3$x_cor)[1])
+x_upp = max(range(image1$x_cor)[2], range(image2$x_cor)[2], range(image3$x_cor)[2])
+
+y_low = min(range(image1$y_cor)[1], range(image2$y_cor)[1], range(image3$y_cor)[1])
+y_upp = max(range(image1$y_cor)[2], range(image2$y_cor)[2], range(image3$y_cor)[2])
+
+x_low
+x_upp
+y_low
+y_upp
+```
+
+```{r}
+
+set.seed(12345)
+library(dplyr)
+
+image_train = data.frame()
+image_test = data.frame()
+image_val = data.frame()
+
+xs = seq(x_low, x_upp, by = 4)
+ys = seq(y_low, y_upp, by = 3)
+
+for(i in xs) {
+
+  for(j in ys) {
+    
+    image1_temp = filter(image1, x_cor >= i & x_cor < i + 4 & y_cor >= j & y_cor < j + 3)
+    image2_temp = filter(image2, x_cor >= i & x_cor < i + 4 & y_cor >= j & y_cor < j + 3)
+    image3_temp = filter(image3, x_cor >= i & x_cor < i + 4 & y_cor >= j & y_cor < j + 3)
+  
+  
+    r_1 = nrow(image1_temp)
+    r_2 = nrow(image2_temp)
+    r_3 = nrow(image3_temp)
+  
+    if (r_1 != 0) {
+      tra1 = as.integer(r_1 * 0.8)
+      val1 = as.integer(train1 * 0.2)
+      train1 = tra1 - val1
+    
+      tra1_index = sample(r_1, tra1)
+      image1_tra = image1_temp[tra1_index,]
+    
+      image1_test = image1_temp[-tra1_index,]
+    
+      val1_index = sample(nrow(image1_tra), val1)
+      image1_val = image1_tra[val1_index,]
+    
+      image1_train = image1_tra[-val1_index, ]
+    
+    
+      image_train = rbind(image_train, image1_train)
+      image_test = rbind(image_test, image1_test)
+      image_val = rbind(image_val, image1_val)
+    
+    }
+
+    if (r_2 != 0) {
+      tra2 = as.integer(r_2 * 0.8)
+      val2 = as.integer(train2 * 0.2)
+      train2 = tra2 - val2
+    
+      tra2_index = sample(r_2, tra2)
+      image2_tra = image2_temp[tra2_index,]
+    
+      image2_test = image2_temp[-tra2_index,]
+    
+      val2_index = sample(nrow(image2_tra), val2)
+      image2_val = image2_tra[val2_index,]
+    
+      image2_train = image2_tra[-val2_index, ]
+    
+      image_train = rbind(image_train, image2_train)
+      image_test = rbind(image_test, image2_test)
+      image_val = rbind(image_val, image2_val)
+      }
+  
+    if (r_3 != 0) {
+      tra3 = as.integer(r_3 * 0.8)
+      val3 = as.integer(train3 * 0.2)
+      train3 = tra3 - val3
+    
+      tra3_index = sample(r_3, tra3)
+      image3_tra = image3_temp[tra3_index, ]
+    
+      image3_test = image3_temp[-tra3_index, ]
+    
+      val3_index = sample(nrow(image3_tra), val3)
+      image3_val = image3_temp[val3_index, ]
+    
+      image3_train = image3_tra[-val3_index, ]
+    
+      image_train = rbind(image_train, image3_train)
+      image_test = rbind(image_test, image3_test)
+      image_val = rbind(image_val, image3_val)
+    }
+  }
+}
+
+```
+
+```{r}
+nrow(image_train)
+nrow(image_test)
+nrow(image_val)
+
+```
+
+
+```{r}
+write.csv(image_train, file="split_data1/image_train1.csv")
+write.csv(image_test, file="split_data1/image_test1.csv")
+write.csv(image_val, file="split_data1/image_val1.csv")
+```
+
+```{r}
+set.seed(12345)
+#split data method 2
+
+label1 = data.frame()
+label_1 = data.frame()
+label0 = data.frame()
+
+image_train = data.frame()
+image_test = data.frame()
+image_val = data.frame()
+
+label1 = filter(images, label == 1)
+label_1 = filter(images, label == -1)
+label0 = filter(images, label == 0)
+
+num_label1 = nrow(label1)
+num_label_1 = nrow(label_1)
+num_label0 = nrow(label0)
+
+test_index = sample(num_label1, num_label1*0.2)
+image_test = rbind(image_test, label1[test_index,])
+temp1 = label1[-test_index,]
+train_index = sample(nrow(temp1), nrow(temp1) * 0.8)
+image_train = rbind(image_train, temp1[train_index,])
+image_val = rbind(image_val, temp1[-train_index,])
+
+test_index = sample(num_label_1, num_label_1*0.2)
+image_test = rbind(image_test, label_1[test_index,])
+temp_1 = label_1[-test_index,]
+train_index = sample(nrow(temp_1), nrow(temp_1) * 0.8)
+image_train = rbind(image_train, temp_1[train_index,])
+image_val = rbind(image_val, temp_1[-train_index,])
+
+test_index = sample(num_label0, num_label0*0.2)
+image_test = rbind(image_test, label0[test_index,])
+temp0 = label0[-test_index,]
+train_index = sample(nrow(temp0), nrow(temp0) * 0.8)
+image_train = rbind(image_train, temp0[train_index,])
+image_val = rbind(image_val, temp0[-train_index,])
+```
+
+```{r}
+write.csv(image_train, file="split_data2/image_train2.csv")
+write.csv(image_test, file="split_data2/image_test2.csv")
+write.csv(image_val, file="split_data2/image_val2.csv")
+```
+
+(b)(Baseline) Report the accuracy of a trivial classifier which sets all labels to -1 (cloud-free) on the validation set and on the test set. In what scenarios will such a classifier have high average accuracy? Hint: Such a step provides a baseline to ensure that the classification problems at hand is not trivial.
+
+```{r}
+set.seed(12345)
+test_index = sample(nrow(images), nrow(images)*0.2)
+image_test = images[test_index,]
+temp = images[-test_index,]
+train_index = sample(nrow(temp), nrow(temp) * 0.8)
+image_train = temp[train_index,]
+image_val = temp[-train_index,]
+
+```
+
+```{r}
+write.csv(image_train, file="split_data_naive/image_train_naive.csv")
+write.csv(image_test, file="split_data_naive/image_test_naive.csv")
+write.csv(image_val, file="split_data_naive/image_val_naive.csv")
+```
+
+```{r}
+library(MASS)
+set.seed(12345)
+
+image_val$label = -1
+image_test$label = -1
+
+qda.model = qda(label~., data=image_train)
+
+
+#Predicting validation
+pred.val.qda = predict(qda.model, image_val)
+mean(pred.val.qda$class==image_val$label)
+
+```
+
+```{r}
+#Predicting test
+pred.test.qda = predict(qda.model, image_test)
+mean(pred.test.qda$class==image_test$label)
+```
+
+(c) (First order importance) Assuming the expert labels as the truth, and without using fancy classification methods, suggest three of the ???best??? features, using quantitative and visual justification. Define your ???best??? feature criteria clearly. Only the relevant plots are necessary. Be sure to give this careful consideration, as it relates to subsequent problems.
+
+```{r}
+library(glmnet)
+
+x=model.matrix(label~NDAI+SD+CORR+DF+CF+BF+AF+AN,data=images) 
+y=images$label
+
+fit.lasso=glmnet(x,y,alpha=1)
+plot(fit.lasso, "lambda", label=TRUE, main="LASSO variable trace plots")
+coef(fit.lasso)[,26]
+#Feature chosen: NDAI, SD, CORR
+```
+
+(d)Write a generic cross validation (CV) function CVgeneric in R that takes a generic classifier, training features, training labels, number of folds K and a loss function (at least classification accuracy should be there) as inputs and outputs the K-fold CV loss on the training set. Please remember to put it in your github folder in Section 5.
+
+```{r}
+#install.packages("cvTools")
+library(cvTools)
+
+
+CVgeneric <- function(classifier, train_f, train_l, folds, loss){
+  acc = c()
+  loss_func = loss
+  dataset = train_f
+  dataset$label = train_l
+  k = folds
+  folds <- cvFolds(NROW(dataset), K=k)
+  test_acc = 0
+  
+  for(i in 1:k){
+    
+    train <- dataset[folds$subsets[folds$which != i], ] 
+    validation <- dataset[folds$subsets[folds$which == i], ] 
+    
+    prediction <- classifier(dataset, validation)
+    
+    accuracy = mean(prediction==validation$label)
+    
+    print(paste0("Accuracy for fold", i))
+    print(accuracy)
+    acc =c(acc, accuracy)
+    
+  }
+  print(paste0("   Accuracy for cv:"))
+  print(mean(acc))
+  print("  Loss:")
+  return (loss_func(mean(acc)))
+}  
+
+```
+
+3. Modeling
+
+(a)Try several classification methods and assess their fit using cross-validation (CV). Provide a commentary on the assumptions for the methods you tried and if they are satisfied in this case. Since CV does not have a validation set, you can merge your training and validation set to fit your CV model. Report the accuracies across folds (and not just the average across folds) and the test accuracy. CV-results for both the ways of creating folds (as answered in part 2(a)) should be reported. Provide a brief commentary on the results. Make sure you honestly mention all the classification methods you have tried.
+
+The logistic regression method assumes that:
+The outcome is a binary or dichotomous variable like yes vs no, positive vs negative, 1 vs 0.
+There is a linear relationship between the logit of the outcome and each predictor variables. Recall that the logit function is logit(p) = log(p/(1-p)), where p is the probabilities of the outcome .
+There is no influential values (extreme values or outliers) in the continuous predictors
+There is no high intercorrelations (i.e. multicollinearity) among the predictors.
+
+```{r}
+
+train1 = read.csv("split_data1/image_train1.csv")
+test1 = read.csv("split_data1/image_test1.csv")
+val1 = read.csv("split_data1/image_val1.csv")
+
+train2 = read.csv("split_data2/image_train2.csv")
+test2 = read.csv("split_data2/image_test2.csv")
+val2 = read.csv("split_data2/image_val2.csv")
+
+training1 = rbind(train1,val1)
+training2 = rbind(train2,val2)
+
+```
+
+```{r}
+set.seed(12345)
+
+training1_log = training1[-which(training1$label == 0),]
+training2_log = training2[-which(training2$label == 0),]
+
+train1_x = training1_log[, c("NDAI", "SD", "CORR")]
+train1_y = training1_log$label
+
+train2_x = training2_log[, c("NDAI", "SD", "CORR")]
+train2_y = training2_log$label
+
+train1_y[train1_y == -1] <- 0
+train2_y[train2_y == -1] <- 0
+
+test1 <- test1[-which(test1$label == 0), ]
+test2 <- test2[-which(test2$label == 0), ]
+
+
+test1_x = test1[, c("NDAI", "SD", "CORR")]
+test1_y = test1$label
+
+test2_x = test2[, c("NDAI", "SD", "CORR")]
+test2_y = test2$label
+
+test1_y[test1_y == -1] <- 0
+test2_y[test2_y == -1] <- 0
+
+```
+
+
+```{r}
+loss <- function(acc){
+  return(1-acc)
+}
+
+
+lda_classifier <- function(dataset, validation){
+  lda.model <-  lda(label~NDAI+SD+CORR,data=dataset)
+  prediction <- predict(lda.model,newdata=validation)
+  return (prediction$class)
+}
+
+
+qda_classifier <- function(dataset, validation){
+  qda.model <- qda(label~NDAI+SD+CORR,data=dataset)
+  prediction <- predict(qda.model,newdata=validation)
+  return (prediction$class)
+}
+
+logistic_classifier <- function(dataset, validation){
+
+  logistic.model <- glm(label~NDAI+SD+CORR,data=dataset, family = "binomial")
+  prediction <- predict(logistic.model,newdata=validation)
+  prediction[prediction > 0.5] <- 1
+  prediction[prediction <= 0.5] <- 0
+  return (prediction)
+}
+
+naiveBayes_classifier <- function(dataset, validation) {
+  nb.model <- naiveBayes(label~NDAI+SD+CORR, data=dataset, laplace=TRUE)
+  prediction = predict(nb.model, newdata=validation, type="raw")[,2]
+  prediction[prediction > 0.5] <- 1
+  prediction[prediction <= 0.5] <- 0
+  return(prediction)
+}
+```
+
+```{r}
+library(e1071)
+
+trainset1 = train1_x
+trainset1$label = train1_y
+
+trainset2 = train2_x
+trainset2$label = train2_y
+
+testset1 = test1_x
+testset1$label = test1_y
+
+testset2 = test2_x
+testset2$label = test2_y
+
+table(testset1$label)
+
+print("Data split1; LDA")
+CVgeneric(lda_classifier, train1_x, train1_y, folds = 4, loss)
+lda.model = lda(label~NDAI+SD+CORR,data=trainset1)
+lda_test_pred1 = predict(lda.model,newdata=testset1)
+print(" Test Accuracy: ")
+print(mean(lda_test_pred1$class==test1_y))
+
+print("Data split2; LDA")
+CVgeneric(lda_classifier, train2_x, train2_y, folds = 4, loss)
+lda.model = lda(label~NDAI+SD+CORR,data=trainset2)
+lda_test_pred2 = predict(lda.model,newdata=testset2)
+print(" Test Accuracy: ")
+print(mean(lda_test_pred2$class==test2_y))
+
+print("Data split1; QDA")
+CVgeneric(qda_classifier, train1_x, train1_y, folds = 4, loss)
+qda.model = qda(label~NDAI+SD+CORR,data=trainset1)
+qda_test_pred1 = predict(qda.model,newdata=testset1)
+print(" Test Accuracy: ")
+print(mean(qda_test_pred1$class==test1_y))
+
+print("Data split2; QDA")
+CVgeneric(qda_classifier, train2_x, train2_y, folds = 4, loss)
+qda.model = qda(label~NDAI+SD+CORR,data=trainset2)
+qda_test_pred2 = predict(qda.model,newdata=testset2)
+print(" Test Accuracy: ")
+print(mean(qda_test_pred2$class==test2_y))
+
+print("Data split1; logistic")
+CVgeneric(logistic_classifier, train1_x, train1_y, folds = 4, loss)
+log.model = glm(label~NDAI+SD+CORR,data=trainset1, family = "binomial")
+log_test_pred1 = predict(log.model,newdata=testset1)
+log_test_pred1[log_test_pred1 > 0.5] <- 1
+log_test_pred1[log_test_pred1 <= 0.5] <- 0
+print(" Test Accuracy: ")
+print(mean(log_test_pred1==test1_y))
+
+print("Data split2; logistic")
+CVgeneric(logistic_classifier, train2_x, train2_y, folds = 4, loss)
+log.model = glm(label~NDAI+SD+CORR,data=trainset2, family = "binomial")
+log_test_pred2 = predict(log.model,newdata=testset2)
+log_test_pred2[log_test_pred2 > 0.5] <- 1
+log_test_pred2[log_test_pred2 <= 0.5] <- 0
+print(" Test Accuracy: ")
+print(mean(log_test_pred2==test2_y))
+
+print("Data split1; naive bayes")
+CVgeneric(naiveBayes_classifier, train1_x, train1_y, folds = 4, loss)
+nb.model <- naiveBayes(label~NDAI+SD+CORR, data=trainset1, laplace=TRUE)
+nb_test_pred1 = predict(nb.model, newdata=testset1, type="raw")[,2]
+nb_test_pred1[nb_test_pred1 > 0.5] <- 1
+nb_test_pred1[nb_test_pred1 <= 0.5] <- 0
+print(" Test Accuracy: ")
+print(mean(nb_test_pred1==test1_y))
+
+print("Data split2; naive bayes")
+CVgeneric(naiveBayes_classifier, train2_x, train2_y, folds = 4, loss)
+nb.model <- naiveBayes(label~NDAI+SD+CORR, data=trainset2, laplace=TRUE)
+nb_test_pred2 = predict(nb.model, newdata=testset2, type="raw")[,2]
+nb_test_pred2[nb_test_pred2 > 0.5] <- 1
+nb_test_pred2[nb_test_pred2 <= 0.5] <- 0
+print(" Test Accuracy: ")
+print(mean(nb_test_pred2==test2_y))
+```
+
+
+
+(b) Use ROC curves to compare the different methods. Choose a cutoff value and highlight it on the ROC curve. Explain your choice of the cutoff value.
+```{r}
+#Method1
+
+#install.packages("ROCR")
+#install.packages("pracma")
+library(ROCR)
+library(pracma)
+library(ggplot2)
+# Method 1
+perf_lda <- performance(prediction(lda_test_pred1$posterior[, 2], test1_y), "tpr", "fpr")
+perf_qda <- performance(prediction(qda_test_pred1$posterior[, 2], test1_y), "tpr", "fpr")
+perf_lr <- performance(prediction(log_test_pred1, test1_y), "tpr", "fpr")
+perf_nb <- performance(prediction(nb_test_pred1, test1_y), "tpr", "fpr")
+perf_nn <- performance(prediction(nn_test_pred1, test1_y), "tpr", "fpr")
+
+df.lda <- data.frame(x=perf_lda@x.values[[1]], y=perf_lda@y.values[[1]])
+df.qda <- data.frame(x=perf_qda@x.values[[1]], y=perf_qda@y.values[[1]])
+df.lr <- data.frame(x=perf_lr@x.values[[1]], y=perf_lr@y.values[[1]])
+df.nb <- data.frame(x=perf_nb@x.values[[1]], y=perf_nb@y.values[[1]])
+df.nn <- data.frame(x=perf_nn@x.values[[1]], y=perf_nn@y.values[[1]])
+
+cut.lda <- data.frame(x=0.11, y=0.92)
+cut.qda <- data.frame(x=0.095, y=0.90)
+cut.lr <- data.frame(x=0.094197, y=0.868267)
+cut.nb <- data.frame(x=0.074197, y=0.82)
+cut.nn <- data.frame(x=0.111, y = 0.93)
+cutPoint <- rbind(cut.lda, cut.qda, cut.lr, cut.nb, cut.nn) #cut.rf)
+
+ggplot() + geom_line(data = df.lda, aes(x=x, y=y, color='lda'), alpha = 0.5) + 
+  geom_line(data = df.qda, aes(x=x, y=y, color='qda'), alpha = 0.5) + 
+  geom_line(data = df.lr, aes(x=x, y=y, color='logistic reg'), alpha = 0.5) +
+  geom_line(data = df.nb, aes(x=x, y=y, color='naive bayes'), alpha = 0.5) +
+  geom_line(data = df.nn, aes(x=x, y=y, color='neural network'), alpha = 0.5) +
+  geom_point(data = cutPoint, aes(x=x, y=y, color = c("lda", "qda", "logistic reg", "naive bayes", "neural network"))) + 
+  xlab("False Positive Rate") + ylab("True Positive Rate") + ggtitle("ROC curve") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+# Method 2
+perf_lda <- performance(prediction(lda_test_pred2$posterior[, 2], test2_y), "tpr", "fpr")
+perf_qda <- performance(prediction(qda_test_pred2$posterior[, 2], test2_y), "tpr", "fpr")
+perf_lr <- performance(prediction(log_test_pred2, test2_y), "tpr", "fpr")
+perf_nb <- performance(prediction(nb_test_pred2, test2_y), "tpr", "fpr")
+perf_nn <- performance(prediction(nn_test_pred2, test2_y), "tpr", "fpr")
+
+df.lda <- data.frame(x=perf_lda@x.values[[1]], y=perf_lda@y.values[[1]])
+df.qda <- data.frame(x=perf_qda@x.values[[1]], y=perf_qda@y.values[[1]])
+df.lr <- data.frame(x=perf_lr@x.values[[1]], y=perf_lr@y.values[[1]])
+df.nb <- data.frame(x=perf_nb@x.values[[1]], y=perf_nb@y.values[[1]])
+df.nn <- data.frame(x=perf_nn@x.values[[1]], y=perf_nn@y.values[[1]])
+
+cut.lda <- data.frame(x=0.11, y=0.92)
+cut.qda <- data.frame(x=0.095, y=0.90)
+cut.lr <- data.frame(x=0.08, y=0.8)
+cut.nb <- data.frame(x=0.15, y=0.98)
+cut.nn <- data.frame(x=0.111, y = 0.93)
+cutPoint <- rbind(cut.lda, cut.qda, cut.lr, cut.nb, cut.nn) #cut.rf)
+
+ggplot() + geom_line(data = df.lda, aes(x=x, y=y, color='lda'), alpha = 1) + 
+  geom_line(data = df.qda, aes(x=x, y=y, color='qda'), alpha = 1) + 
+  geom_line(data = df.lr, aes(x=x, y=y, color='logistic reg'), alpha = 1) +
+  geom_line(data = df.nb, aes(x=x, y=y, color='naive bayes'), alpha = 1) +
+  geom_line(data = df.nn, aes(x=x, y=y, color='neural network'), alpha = 1) +
+  geom_point(data = cutPoint, aes(x=x, y=y, color = c("lda", "qda", "logistic reg", "naive bayes", "neural network"))) + 
+  xlab("False Positive Rate") + ylab("True Positive Rate") + ggtitle("ROC curve") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+(c)
+```{r}
+
+#install.packages('neuralnet')
+library(neuralnet, verbose=FALSE, warn.conflicts=FALSE, quietly=TRUE)
+
+neuralnet_classifier <- function(dataset, validation) {
+  nn.model <-neuralnet(label~NDAI+SD+CORR, data=trainset1, algorithm="rprop+", act.fct="logistic", linear.output=FALSE, rep=1)
+  prediction = predict(nn.model, newdata=validation, type="raw")
+  prediction[prediction > 0.5] <- 1
+  prediction[prediction <= 0.5] <- 0
+  return(prediction)
+}
+
+
+print("Data split1; neuralnet")
+CVgeneric(neuralnet_classifier, train1_x, train1_y, folds = 4, loss)
+nn.model <-neuralnet(label~NDAI+SD+CORR, data=trainset1, algorithm="rprop+", act.fct="logistic", linear.output=FALSE, rep=1)
+nn_test_pred1 = predict(nn.model, newdata=testset1, type="raw")
+nn_test_pred1[nn_test_pred1 > 0.5] <- 1
+nn_test_pred1[nn_test_pred1 <= 0.5] <- 0
+print(" Test Accuracy: ")
+print(mean(nn_test_pred1==test1_y))
+
+print("Data split2; neuralnet")
+CVgeneric(neuralnet_classifier, train2_x, train2_y, folds = 4, loss)
+nn.model <-neuralnet(label~NDAI+SD+CORR, data=trainset2, algorithm="rprop+", act.fct="logistic", linear.output=FALSE, rep=1)
+nn_test_pred2 = predict(nn.model, newdata=testset2, type="raw")
+nn_test_pred2[nn_test_pred2 > 0.5] <- 1
+nn_test_pred2[nn_test_pred2 <= 0.5] <- 0
+print(" Test Accuracy: ")
+print(mean(nn_test_pred2==test2_y))
+```
+
+
+4 Diagnostics (50 pts)
+Disclaimer: The questions in this section are open-ended. Be visual and quantitative! The gold standard arguments would be able to convince National Aeronautics and Space Ad- ministration (NASA) to use your classification method???in which case Bonus points will be awarded.
+
+(a)Do an in-depth analysis of a good classification model of your choice by showing some diagnostic plots or information related to convergence or parameter estimation.
+
+
+```{r}
+#neural network
+
+percentage <- c(0.1, 0.2, 0.4, 0.6, 0.8, 1)
+loss <- c()
+
+weight1 <- c()
+weight2 <- c()
+weight3 <- c()
+weight4 <- c()
+
+for(i in percentage) {
+  size = nrow(trainset1) * i
+  index = sample(nrow(trainset1), size)
+  temp_df = trainset1[index,]
+
+  model <-neuralnet(label~NDAI+SD+CORR, data=temp_df, hidden=0, algorithm="rprop+",
+                    act.fct="logistic", linear.output=FALSE, rep=1)
+  weight1 <- c(weight1, model$weights[[1]][[1]][1])
+  weight2 <- c(weight2, model$weights[[1]][[1]][2])
+  weight3 <- c(weight3, model$weights[[1]][[1]][3])
+  weight4 <- c(weight4, model$weights[[1]][[1]][4])
+  
+  pred = predict(model, newdata=testset1, type="raw")
+  pred[pred > 0.5] <- 1
+  pred[pred <= 0.5] <- 0
+  loss = c(loss, (mean(pred!=test1_y)))
+
+}
+
+plot(x = percentage, y = loss, type = "l", main = "Training size VS. loss")
+```
+
+
+```{r}
+weight_df <- data.frame(percentage, weight1 = weight1, weight2, weight3, weight4)
+
+ggplot(weight_df) + geom_line(data = weight_df, aes(x=percentage, y=weight1,
+                                                    color='weight1'), alpha = 1) +
+  geom_line(data = weight_df, aes(x=percentage, y=weight2,
+                                                    color='weight2'), alpha = 1) +
+  geom_line(data = weight_df, aes(x=percentage, y=weight3,
+                                                    color='weight3'), alpha = 1) +
+  geom_line(data = weight_df, aes(x=percentage, y=weight4,
+                                                    color='weight4'), alpha = 1) +
+  ylab("weights")
+  
+```
+
+
+(b) For your best classification model(s), do you notice any patterns in the misclassification errors? Again, use quantitative and visual methods of analysis. Do you notice problems in particular regions, or in specific ranges of feature values?
+
+```{r}
+img1 = image1[-which(image1$label == 0),]
+img1$label <- factor(img1$label)
+
+ml.image1 <-neuralnet(label~NDAI+SD+CORR, data=img1, algorithm="rprop+",
+                    act.fct="logistic", linear.output=FALSE, rep=1)
+pred = predict(ml.image1, newdata=img1, type="raw")
+pred[pred > 0.5] <- 1
+pred[pred <= 0.5] <- -1
+img1$pred = pred[,2]
+img1$hit <-  (img1$pred == img1$label)
+
+correct <- sum(img1$hit)/nrow(img1)
+wrong <- 1- correct
+rate_table <- data.frame(correct, wrong)
+rate_table
+
+ggplot(img1) +
+  geom_point(aes(x = x_cor, y = y_cor, col = hit)) + 
+  scale_colour_manual(labels = c("Wrong", "Correct"), values = c("blue", "red")) +
+  xlab("x coordinator") + ylab("y coordinator")
+
+```
+
+```{r}
+# cyclical area get wrong predictions 
+```
+
+
+(c)Based on parts 4(a) and 4(b), can you think of a better classifier? How well do you think your model will work on future data without expert labels?
+
+```{r}
+#increase the hidden layer to try. 
+#The number of hidden neurons should be 2/3 the size of the input layer, plus the size of the output layer.
+# It takes long time, especially in R
+```
+
+
+(d)Do your results in parts 4(a) and 4(b) change as you modify the way of splitting the data?
+
+```{r}
+# looks the same for two data spliting. 
+```
+
+
+(e)Write a paragraph for your conclusion.
+
